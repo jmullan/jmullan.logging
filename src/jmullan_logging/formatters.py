@@ -7,6 +7,8 @@ import traceback
 from collections.abc import Mapping
 from typing import Any
 
+from jmullan_logging.helpers import current_logging_context
+
 _EMPTY = object()
 
 
@@ -201,6 +203,9 @@ def get_event(record: logging.LogRecord) -> dict[str, Any]:
         else:
             event[from_key] = value
 
+    context = current_logging_context().copy()
+    event.update(context)
+
     extra: dict = {}
     if hasattr(record, "extra"):
         extra = record.extra or {}  # type: ignore
@@ -328,7 +333,7 @@ class PlainTextFormatter(EasyLoggingFormatter):
 
 
 def _json_dumps_fallback(value: Any) -> str:
-    """Fallback handler for json.dumps to handle objects json doesn't know how to
+    """Fallback handler for `json.dumps` to handle objects json doesn't know how to
     serialize.
     """
     try:
@@ -339,7 +344,7 @@ def _json_dumps_fallback(value: Any) -> str:
     return repr(value)
 
 
-class JsonFormatter(EasyLoggingFormatter):
+class ECSJsonFormatter(EasyLoggingFormatter):
     """Logs a record as ECS-ish JSON using the event prepared by PandoraLoggingFormatter."""
 
     def formatMessage(self, record):

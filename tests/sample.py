@@ -36,9 +36,15 @@ if __name__ == "__main__":
     log.info("a" * 20, extra={"foo": "bar", "a.b": "c"})
     logger.info("b" * 20, extra={"baz": "pirate", "d.e": "f"})
 
-    with logging_context(z="ccc"):
+    with logging_context(z="zzz"):
         log.info("d" * 20)
-        logger.info("e" * 20)
+        with logging_context(y="yyy"):
+            logger.info("e" * 20)
+        log.info("f" * 20)
+
+    @logging_context_from_args("foo")
+    def error(argument_does_not_match):
+        pass
 
     @logging_context_from_args("foo")
     def thing(foo: str, bar: str | None = None):

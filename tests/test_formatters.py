@@ -45,7 +45,7 @@ def test_normalize_dict():
 
 
 def test_format_json():
-    jf = formatters.JsonFormatter()
+    jf = formatters.ECSJsonFormatter()
     assert jf.format_json({}) == "{}"
     assert jf.format_json({"a.b": "c"}) == '{"a":{"b":"c"}}'
     assert jf.format_json({"d.e": "f", "a.b": "c"}) == '{"a":{"b":"c"},"d":{"e":"f"}}'

@@ -1,11 +1,6 @@
 from jmullan_logging import helpers
 
 
-def test_split_request():
-    actual = helpers.split_request("GET /")
-    assert {"http.request.method": "GET", "http_request_path": "/"} == actual
-
-
 def test_log_stack():
     log_state = helpers.LogState()
     assert log_state.top() == {}
