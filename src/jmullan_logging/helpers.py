@@ -1,6 +1,6 @@
+import contextvars
 import inspect
 import logging
-import threading
 from collections import ChainMap
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -8,18 +8,11 @@ from functools import wraps
 
 logger = logging.getLogger(__name__)
 
-
-_THREAD_DATA = threading.local()
-if not hasattr(_THREAD_DATA, "stack"):
-    _THREAD_DATA.stack = ChainMap()
-
-
-class LoggingContext(dict):
-    """A logging context stack."""
+_stack = contextvars.ContextVar("LoggingContext.stack", default=ChainMap())
 
 
 def current_logging_context() -> dict:
-    return dict(_THREAD_DATA.stack.copy())
+    return dict(_stack.get().copy())
 
 
 @contextmanager
@@ -28,13 +21,17 @@ def logging_context(**kwargs) -> Iterator[ChainMap]:
 
     For single logging lines use logging.level(message, extra={'x': 1})
     """
-    parent = _THREAD_DATA.stack
+    token = None
     try:
-        child = _THREAD_DATA.stack.new_child(kwargs)
-        _THREAD_DATA.stack = child
+        child = _stack.get().new_child(kwargs)
+        token = _stack.set(child)
         yield child
     finally:
-        _THREAD_DATA.stack = parent
+        try:
+            if token is not None:
+                _stack.reset(token)
+        except Exception:
+            logger.error("Could not reset logging context")
 
 
 def logging_context_from_args(*intercept_args) -> Callable:

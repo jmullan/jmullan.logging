@@ -3,7 +3,8 @@ name = "jmullan_logging"
 version = "1.0.0"
 description = "Easily set up logging for your python script"
 authors = [
-    {name = "Jesse Mullan", email="jmullan@gmail.com"}
+    {name = "Jesse Mullan", email="jmullan@gmail.com"},
+    {name = "Hope Ranker", email="hope.ranker@gmail.com"}
 ]
 maintainers = [
     {name = "Jesse Mullan", email="jmullan@gmail.com"}
