@@ -1,3 +1,7 @@
+"""This file is intended to demonstrate colorized logging output with additional logging context
+information, and is not strictly a test.
+"""
+
 import argparse
 import logging
 
@@ -44,7 +48,9 @@ if __name__ == "__main__":
 
     @logging_context_from_args("foo")
     def error(argument_does_not_match):
-        pass
+        logger.info("This should still work, but %s", argument_does_not_match)
+
+    error("an error should have been logged about foo")
 
     @logging_context_from_args("foo")
     def thing(foo: str, bar: str | None = None):

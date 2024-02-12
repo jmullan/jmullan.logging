@@ -2,7 +2,7 @@ import inspect
 import logging
 import threading
 from collections import ChainMap
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from functools import wraps
 
@@ -23,7 +23,7 @@ def current_logging_context() -> dict:
 
 
 @contextmanager
-def logging_context(**kwargs):
+def logging_context(**kwargs) -> Iterator[ChainMap]:
     """Add fields to logging
 
     For single logging lines use logging.level(message, extra={'x': 1})
@@ -51,13 +51,31 @@ def logging_context_from_args(*intercept_args) -> Callable:
 
     def decorator(function: Callable) -> Callable:
         """Given a function, tries to match valid parameters to the function's signature"""
+        if not intercept_args:
+            logger.error(
+                "No parameters were specified to attach to the logging context"
+                " of the given function %s",
+                set(intercept_args),
+                function.__name__,
+            )
+            return function
+
         signature = inspect.signature(function)
         valid_parameters = {x for x in intercept_args if x in signature.parameters}
+        invalid_parameters = {x for x in intercept_args if x not in signature.parameters}
+        if invalid_parameters:
+            logger.error(
+                "Invalid parameters %s were attempted to be attached to the logging context"
+                " that are not in the given function's signature %s(%s)",
+                invalid_parameters,
+                function.__name__,
+                ", ".join(signature.parameters.keys()),
+            )
         if not valid_parameters:
             logger.error(
                 "None of the parameters %s you are trying to attach to the logging context"
                 " are in the given function's signature %s(%s)",
-                intercept_args,
+                set(intercept_args),
                 function.__name__,
                 ", ".join(signature.parameters.keys()),
             )
