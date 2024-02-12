@@ -8,7 +8,9 @@ from functools import wraps
 
 logger = logging.getLogger(__name__)
 
-_stack = contextvars.ContextVar("LoggingContext.stack", default=ChainMap())
+_stack = contextvars.ContextVar(
+    "LoggingContext.stack", default=ChainMap()
+)  # type: contextvars.ContextVar[ChainMap]
 
 
 def current_logging_context() -> dict:
