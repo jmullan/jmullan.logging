@@ -7,6 +7,8 @@ import traceback
 from collections.abc import Mapping
 from typing import Any
 
+import colorist
+
 from jmullan_logging.helpers import current_logging_context
 
 _EMPTY = object()
@@ -168,25 +170,25 @@ RECORD_MAPPINGS = {
     "created": "",
     "exc_info": "",
     "exc_text": "",
-    "filename": "",
-    "funcName": "",
+    "filename": "log.origin.file.name",
+    "funcName": "log.origin.function",
     "levelname": "log.level",
     "levelno": "",
-    "lineno": "",
+    "lineno": "log.origin.file.line",
     "module": "",
     "msecs": "",
     "message": "",
     "msg": "",
     "name": "log.logger",
-    "pathname": "",
-    "process": "",
-    "processName": "",
+    "pathname": "log.file.path",
+    "process": "process.pid",
+    "processName": "process.name",
     "relativeCreated": "",
+    "taskName": "",
     "stack_info": "",
-    "thread": "",
-    "threadName": "",
+    "thread": "process.thread.id",
+    "threadName": "process.thread.name",
 }
-
 
 def get_event(record: logging.LogRecord) -> dict[str, Any]:
     """Prepares a flattened dictionary from a LogRecord that includes the basic ECS fields.
@@ -196,6 +198,8 @@ def get_event(record: logging.LogRecord) -> dict[str, Any]:
     event = {"@timestamp": iso_date(record), "message": record.getMessage()}
 
     for from_key, value in record.__dict__.items():
+        if value is None:
+            continue
         if from_key in RECORD_MAPPINGS:
             to_key = RECORD_MAPPINGS[from_key]
             if to_key:
@@ -228,21 +232,15 @@ class EasyLoggingFormatter(abc.ABC, logging.Formatter):
 class ConsoleFormatter(EasyLoggingFormatter):
     """Logging colored formatter, adapted from https://stackoverflow.com/a/56944256/3638629."""
 
-    grey = "\x1b[38;21m"
-    blue = "\x1b[38;5;39m"
-    green = "\x1b[38;32m"
-    yellow = "\x1b[38;5;226m"
-    red = "\x1b[38;5;196m"
-    bold_red = "\x1b[31;1m"
     reset = "\x1b[0m"
 
     COLORS = {
-        logging.DEBUG: grey,
-        # logging.INFO: blue,
-        logging.WARNING: yellow,
-        logging.ERROR: red,
-        logging.FATAL: bold_red,
-        logging.CRITICAL: bold_red,
+        logging.DEBUG: colorist.Color.WHITE,
+        logging.INFO: colorist.BrightColor.WHITE,
+        logging.WARNING: colorist.Color.YELLOW,
+        logging.ERROR: colorist.Color.RED,
+        logging.FATAL: colorist.Color.RED,
+        logging.CRITICAL: colorist.Color.RED,
     }
 
     def format_extra(self, value: Any, color: str | None = None) -> str:
@@ -253,13 +251,13 @@ class ConsoleFormatter(EasyLoggingFormatter):
                 value = str(value)
         return self.colorize(value, color)
 
-    def colorize(self, value: Any, color: str | None = None) -> str:
+    def colorize(self, value: Any, color: colorist.Color | None = None) -> str:
         if color is None:
             return f"{value}"
-        return f"{color}{value}{self.reset}"
+        return f"{color}{value}{colorist.Color.OFF}"
 
     def format_field(self, key: str, value: Any) -> str:
-        k = self.format_extra(key, self.green)
+        k = self.format_extra(key, colorist.Color.GREEN)
         v = self.format_extra(value)
         return f"{k}={v}"
 
@@ -277,7 +275,19 @@ class ConsoleFormatter(EasyLoggingFormatter):
 
         # this method is just formatting the "message". LogFormatter will supply the
         # error message and traceback
-        suppress_fields = {"error.type", "error.message", "error.stack_trace"}
+        suppress_fields = {
+            "error.type",
+            "error.message",
+            "error.stack_trace",
+            "log.file.path",
+            "log.origin.file.name",
+            "log.origin.file.line",
+            "process.thread.id",
+            "process.thread.name",
+            "process.name",
+            "process.pid",
+            "log.origin.function"
+        }
         for field in suppress_fields:
             event.pop(field, None)
 

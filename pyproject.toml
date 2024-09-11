@@ -16,7 +16,9 @@ classifiers = [
 readme = "README.md"
 requires-python = ">=3.11"
 keywords = ["logging"]
-dependencies = []
+dependencies = [
+    'colorist'
+]
 
 [project.optional-dependencies]
 dev = [

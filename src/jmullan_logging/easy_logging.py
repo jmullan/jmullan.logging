@@ -21,13 +21,16 @@ def easy_initialize_logging(
     if log_level is None:
         log_level = os.environ.get("LOGLEVEL", "INFO").upper() or "INFO"
 
-    if formatter is None:
-        formatter = formatters.ConsoleFormatter()
-
     logging.captureWarnings(True)
 
     if stream is None:
         stream = sys.stdout
+
+    if formatter is None:
+        if stream.isatty():
+            formatter = formatters.ConsoleFormatter()
+        else:
+            formatter = formatters.ECSJsonFormatter()
 
     handler = logging.StreamHandler(stream)
     handler.setFormatter(formatter)
