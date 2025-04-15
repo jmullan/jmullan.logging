@@ -24,9 +24,7 @@ if __name__ == "__main__":
         choices=[None, "json", "text"],
         help="Choose a log format",
     )
-    parser.add_argument(
-        "--log-level", dest="log_level", required=False, help="Choose a log level", choices=_LEVELS
-    )
+    parser.add_argument("--log-level", dest="log_level", required=False, help="Choose a log level", choices=_LEVELS)
     args = parser.parse_args()
 
     easy_initialize_logging(args.log_format, args.log_level)

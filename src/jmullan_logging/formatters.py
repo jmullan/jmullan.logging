@@ -7,7 +7,7 @@ import traceback
 from collections.abc import Mapping
 from typing import Any
 
-import colorist
+import colorist  # type: ignore[import-not-found]
 
 from jmullan_logging.helpers import current_logging_context
 
@@ -140,7 +140,7 @@ def normalize_dict(value: dict[str, Any]) -> dict[str, Any]:
 
 def iso_date(record: logging.LogRecord) -> str:
     iso_minus_timezone = datetime.datetime.utcfromtimestamp(record.created).isoformat()
-    return "%sZ" % iso_minus_timezone
+    return f"{iso_minus_timezone}Z"
 
 
 def render_traceback(exception_info) -> str:
@@ -189,6 +189,7 @@ RECORD_MAPPINGS = {
     "thread": "process.thread.id",
     "threadName": "process.thread.name",
 }
+
 
 def get_event(record: logging.LogRecord) -> dict[str, Any]:
     """Prepares a flattened dictionary from a LogRecord that includes the basic ECS fields.
@@ -243,7 +244,7 @@ class ConsoleFormatter(EasyLoggingFormatter):
         logging.CRITICAL: colorist.Color.RED,
     }
 
-    def format_extra(self, value: Any, color: str | None = None) -> str:
+    def format_extra(self, value: Any, color: colorist.Color | str | None = None) -> str:
         if not isinstance(value, str):
             try:
                 value = json.dumps(value)
@@ -251,7 +252,7 @@ class ConsoleFormatter(EasyLoggingFormatter):
                 value = str(value)
         return self.colorize(value, color)
 
-    def colorize(self, value: Any, color: colorist.Color | None = None) -> str:
+    def colorize(self, value: Any, color: colorist.Color | str | None = None) -> str:
         if color is None:
             return f"{value}"
         return f"{color}{value}{colorist.Color.OFF}"
@@ -286,7 +287,7 @@ class ConsoleFormatter(EasyLoggingFormatter):
             "process.thread.name",
             "process.name",
             "process.pid",
-            "log.origin.function"
+            "log.origin.function",
         }
         for field in suppress_fields:
             event.pop(field, None)
@@ -355,7 +356,7 @@ def _json_dumps_fallback(value: Any) -> str:
 
 
 class ECSJsonFormatter(EasyLoggingFormatter):
-    """Logs a record as ECS-ish JSON using the event prepared by PandoraLoggingFormatter."""
+    """Logs a record as ECS-ish JSON using the event prepared by EasyLoggingFormatter."""
 
     def formatMessage(self, record):
         """Format the specified record as text."""
@@ -375,6 +376,4 @@ class ECSJsonFormatter(EasyLoggingFormatter):
         # add the sorted tree to the ordered fields
         ordered_event.update(normalized_event)
 
-        return json.dumps(
-            ordered_event, sort_keys=False, separators=(",", ":"), default=_json_dumps_fallback
-        )
+        return json.dumps(ordered_event, sort_keys=False, separators=(",", ":"), default=_json_dumps_fallback)

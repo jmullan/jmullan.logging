@@ -39,9 +39,7 @@ def test_normalize_dict():
     assert formatters.normalize_dict({"a.b": "c", "a.d": "e"}) == {"a": {"b": "c", "d": "e"}}
     assert formatters.normalize_dict({"a.b": "c", "a.b.d": "e"}) == {"a": {"b": {"d": "e"}}}
     assert formatters.normalize_dict({"a.b": [1, 2, 3]}) == {"a": {"b": [1, 2, 3]}}
-    assert formatters.normalize_dict({"a.b": [1, 2, {"c.d": "e"}]}) == {
-        "a": {"b": [1, 2, {"c": {"d": "e"}}]}
-    }
+    assert formatters.normalize_dict({"a.b": [1, 2, {"c.d": "e"}]}) == {"a": {"b": [1, 2, {"c": {"d": "e"}}]}}
 
 
 def test_format_json():
@@ -58,7 +56,5 @@ def test_format_json():
         "log.level": "INFO",
         "message": "something",
     }
-    expected = (
-        '{"@timestamp":"anything","log.level":"INFO","message":"something","d":{"a":"c","e":"f"}}'
-    )
+    expected = '{"@timestamp":"anything","log.level":"INFO","message":"something","d":{"a":"c","e":"f"}}'
     assert jf.format_json(event) == expected

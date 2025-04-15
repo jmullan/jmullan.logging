@@ -8,9 +8,7 @@ from functools import wraps
 
 logger = logging.getLogger(__name__)
 
-_stack = contextvars.ContextVar(
-    "LoggingContext.stack", default=ChainMap()
-)  # type: contextvars.ContextVar[ChainMap]
+_stack = contextvars.ContextVar("LoggingContext.stack", default=ChainMap())  # type: contextvars.ContextVar[ChainMap]
 
 
 def current_logging_context() -> dict:
@@ -52,8 +50,7 @@ def logging_context_from_args(*intercept_args) -> Callable:
         """Given a function, tries to match valid parameters to the function's signature"""
         if not intercept_args:
             logger.error(
-                "No parameters were specified to attach to the logging context"
-                " of the given function %s",
+                "No parameters were specified to attach to the logging context of the given function %s",
                 set(intercept_args),
                 function.__name__,
             )
@@ -82,13 +79,10 @@ def logging_context_from_args(*intercept_args) -> Callable:
 
         @wraps(function)
         def wrapper(*args, **kwargs):
-
             try:
                 bound_arguments = signature.bind(*args, **kwargs)
                 bound_arguments.apply_defaults()
-                context = {
-                    x: y for x, y in bound_arguments.arguments.items() if x in valid_parameters
-                }
+                context = {x: y for x, y in bound_arguments.arguments.items() if x in valid_parameters}
             except Exception:
                 context = {}
             with logging_context(**context):
