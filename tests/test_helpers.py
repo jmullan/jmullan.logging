@@ -1,6 +1,6 @@
 import logging
 
-from jmullan_logging import helpers
+from jmullan.logging import helpers
 
 logger = logging.getLogger(__name__)
 

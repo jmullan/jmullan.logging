@@ -1,17 +1,20 @@
+"""Configure logging the easy way."""
+
 import logging
 import os
 import sys
 from typing import TextIO
 
-from jmullan_logging import formatters
+from jmullan.logging import formatters
 
 
 def easy_initialize_logging(
     log_level: str | None = None,
     stream: TextIO | None = None,
     formatter: logging.Formatter | None = None,
-):
-    """A very simple way to configure logging, suitable for toy applications.
+    log_levels: dict[str, str] | None = None,
+) -> None:
+    """Configure logging very simply.
 
     :param log_level: The string log level. Falls back to LOGLEVEL in the env variables or INFO
     :param stream: Write to this stream, or stdout if omitted
@@ -21,7 +24,7 @@ def easy_initialize_logging(
     if log_level is None:
         log_level = os.environ.get("LOGLEVEL", "INFO").upper() or "INFO"
 
-    logging.captureWarnings(True)
+    logging.captureWarnings(capture=True)
 
     if stream is None:
         stream = sys.stdout
@@ -39,3 +42,8 @@ def easy_initialize_logging(
     root_logger.addHandler(handler)
 
     root_logger.setLevel(log_level)
+
+    if log_levels is not None:
+        for logger_name, log_level in log_levels.items():
+            logger = logging.getLogger(logger_name)
+            logger.setLevel(log_level)

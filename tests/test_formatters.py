@@ -1,4 +1,6 @@
-from jmullan_logging import formatters
+import pytest
+
+from jmullan.logging import formatters
 
 
 def test_flatten_dict():
@@ -20,15 +22,26 @@ def test_union_keys():
     ]
 
 
-def test_merge_values():
-    assert formatters.merge_values({}, {}) == {}
-    assert formatters.merge_values({"a": "b"}, {"c": "d"}) == {"c": "d", "a": "b"}
-    assert formatters.merge_values({"a": "b"}, {"a": "d"}) == {"a": "b"}
-    assert formatters.merge_values({"a": "b"}, {"a": {}}) == {}
-    assert formatters.merge_values({"a": "b"}, {"a": {"c": "d"}}) == {"a": {"c": "d"}}
+@pytest.mark.parametrize(
+    ("from_", "into", "expected"),
+    [
+        ({}, {}, {}),
+        ({"a": "b"}, {"a": "d"}, {"a": "b"}),
+        ({"a": "b"}, {"c": "d"}, {"c": "d", "a": "b"}),
+        ({"a": "b"}, {"a": {}}, {}),
+        ({"a": "b"}, {"a": {"c": "d"}}, {"a": {"c": "d"}}),
+    ],
+)
+def test_merge_values(from_, into, expected):
+    assert expected == formatters.merge_values(from_, into)
 
 
-def test_de_dot():
+@pytest.mark.parametrize(
+    ("dot_string", "value", "expected"),
+    [("a.b.c", "e", ("a", {"b": {"c": "e"}})), ("a.b", 2, ("a", {"b": 2})), ("a", "b", ("a", "b"))],
+)
+def test_de_dot(dot_string, value, expected):
+    assert expected == formatters.de_dot(dot_string, value)
     assert formatters.de_dot("a.b.c", "e") == ("a", {"b": {"c": "e"}})
     assert formatters.de_dot("a.b", 2) == ("a", {"b": 2})
     assert formatters.de_dot("a", "b") == ("a", "b")

@@ -1,3 +1,5 @@
+"""Useful things to help you build structured logs."""
+
 import contextvars
 import inspect
 import logging
@@ -5,21 +7,29 @@ from collections import ChainMap
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from functools import wraps
+from typing import ParamSpec, TypeVar
 
 logger = logging.getLogger(__name__)
 
-_stack = contextvars.ContextVar("LoggingContext.stack", default=ChainMap())  # type: contextvars.ContextVar[ChainMap]
+_stack: contextvars.ContextVar[ChainMap] = contextvars.ContextVar("LoggingContext.stack")
+_stack.set(ChainMap())
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 def current_logging_context() -> dict:
+    """Get a copy of the current logging context."""
     return dict(_stack.get().copy())
 
 
 @contextmanager
 def logging_context(**kwargs) -> Iterator[ChainMap]:
-    """Add fields to logging
+    """Add fields to logging context.
 
     For single logging lines use logging.level(message, extra={'x': 1})
+
     """
     token = None
     try:
@@ -31,12 +41,11 @@ def logging_context(**kwargs) -> Iterator[ChainMap]:
             if token is not None:
                 _stack.reset(token)
         except Exception:
-            logger.error("Could not reset logging context")
+            logger.exception("Could not reset logging context")
 
 
 def logging_context_from_args(*intercept_args) -> Callable:
     """Decorate a method with this in order to add specific arguments to the logging context.
-
 
     For instance, this would add the value to the context when the function is called:
     ```
@@ -46,12 +55,12 @@ def logging_context_from_args(*intercept_args) -> Callable:
     ```
     """
 
-    def decorator(function: Callable) -> Callable:
-        """Given a function, tries to match valid parameters to the function's signature"""
+    def decorator(function: Callable[P, R]) -> Callable[P, R]:
+        """Given a function, tries to match valid parameters to the function's signature."""
         if not intercept_args:
             logger.error(
-                "No parameters were specified to attach to the logging context of the given function %s",
-                set(intercept_args),
+                "No parameters were specified to attach to the logging context of the given function %s %s",
+                intercept_args,
                 function.__name__,
             )
             return function
@@ -78,7 +87,7 @@ def logging_context_from_args(*intercept_args) -> Callable:
             return function
 
         @wraps(function)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             try:
                 bound_arguments = signature.bind(*args, **kwargs)
                 bound_arguments.apply_defaults()
@@ -86,7 +95,7 @@ def logging_context_from_args(*intercept_args) -> Callable:
             except Exception:
                 context = {}
             with logging_context(**context):
-                function(*args, **kwargs)
+                return function(*args, **kwargs)
 
         return wrapper
 

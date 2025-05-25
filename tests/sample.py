@@ -5,11 +5,11 @@ information, and is not strictly a test.
 import argparse
 import logging
 
-from jmullan_logging.easy_logging import easy_initialize_logging
-from jmullan_logging.helpers import logging_context, logging_context_from_args
+from jmullan.logging.easy_logging import easy_initialize_logging
+from jmullan.logging.helpers import logging_context, logging_context_from_args
 
 
-class FooException(Exception):
+class FooError(Exception):
     pass
 
 
@@ -73,14 +73,14 @@ if __name__ == "__main__":
     except Exception:
         logger.exception("got an exception")
     try:
-        raise FooException("oh yes")
+        raise FooError("oh yes")
     except Exception:
         logger.exception("got another exception")
 
     logger.debug("debug")
     logger.info("info")
     logger.warning("warning")
-    logger.warn("warn")
+    logger.warning("warn")
     logger.error("error")
     logger.fatal("fatal")
     logger.critical("critical")

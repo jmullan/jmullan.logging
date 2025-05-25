@@ -1,46 +1,64 @@
+"""Various logging formatters."""
+
 import abc
 import datetime
 import io
 import json
 import logging
 import traceback
+import typing
 from collections.abc import Mapping
 from typing import Any
 
 import colorist  # type: ignore[import-not-found]
 
-from jmullan_logging.helpers import current_logging_context
+from jmullan.logging.helpers import current_logging_context
 
-_EMPTY = object()
+
+class _EmptyMarker:
+    pass
+
+
+_EMPTY = _EmptyMarker()
+_OFFSET_8 = datetime.timezone(datetime.timedelta(hours=-8))
+ANY = Any
 
 
 def flatten_dict(value: Mapping[str, Any]) -> dict[str, Any]:
-    """Adds dots to all nested fields in dictionaries.
+    """Add dots to all nested fields in dictionaries.
 
     Entries with different forms of nesting update.
-    {"a": {"b": {"c": 4}} -> {"a.b.c": 4}
-    {"a": {"b": 1}, "a.b": 2} -> {"a.b": 2}
+    >>> flatten_dict({"a": {"b": {"c": 4}}})
+    {'a.b.c': 4}
+    >>> flatten_dict({"a": {"b": 1}, "a.b": 2})
+    {'a.b': 2}
     """
     top_level = {}
     for key, val in value.items():
         if not isinstance(val, Mapping):
             top_level[key] = val
         else:
-            val = flatten_dict(val)
-            for sub_key, sub_value in val.items():
-                sub_key = f"{key}.{sub_key}"
-                top_level[sub_key] = sub_value
+            for sub_key, sub_value in flatten_dict(val).items():
+                top_level[f"{key}.{sub_key}"] = sub_value
     return top_level
 
 
-def key_to_dict(key: str, value: Any) -> dict[str, Any]:
+def key_to_dict(key: str, value: ANY) -> dict[str, Any]:
+    """Turn a dotted key and accompanying value into a dictionary.
+
+    >>> key_to_dict("key", "value")
+    {'key': 'value'}
+    >>> key_to_dict("key.a.b", "value")
+    {'key': {'a': {'b': 'value'}}}
+    """
     if "." not in key:
         return {key: value}
     parts = key.split(".", 1)
-    return {key: key_to_dict(parts[1], value)}
+    return {parts[0]: key_to_dict(parts[1], value)}
 
 
 def merge_dicts(into_dict: dict[str, Any], from_dict: dict[str, Any]) -> dict[str, Any]:
+    """Turn two dicts (or other things) into one."""
     new_dict = {}
     if into_dict is not None:
         new_dict.update(into_dict)
@@ -68,7 +86,7 @@ def union_keys(dx: dict[str, Any], dy: dict[str, Any]) -> list[str]:
 
 
 def unflatten_dict(value: dict[str, Any]) -> dict[str, Any]:
-    """Changes dictionary of dotted items into a nested dictionary
+    """Change dictionary of dotted items into a nested dictionary.
 
     Entries with different forms of nesting update.
     {"a.b.c": 4} -> {"a": {"b": {"c": 4}}
@@ -81,7 +99,7 @@ def unflatten_dict(value: dict[str, Any]) -> dict[str, Any]:
     return top_level
 
 
-def merge_values(from_: dict[Any, Any], into: dict[Any, Any]) -> Any:
+def merge_values(from_: ANY, into: ANY) -> dict | ANY | None:  # noqa: PLR0911
     """Merge deeply nested dictionary structures.
 
     In case of collisions between a dictionary and non-dictionary, the dictionary wins.
@@ -89,27 +107,28 @@ def merge_values(from_: dict[Any, Any], into: dict[Any, Any]) -> Any:
     If two dictionaries are merged, and a key / value pair has an empty dictionary as
     the value, it will be pruned.
     """
-    if isinstance(from_, dict) and isinstance(into, dict):
-        output = {}
-        for key in union_keys(into, from_):
-            value = merge_values(from_.get(key, _EMPTY), into.get(key, _EMPTY))
-            if value != {}:
-                output[key] = value
-        return output
-    elif isinstance(from_, dict):
-        return from_.copy()
-    elif isinstance(into, dict):
-        return into.copy()
-    elif from_ == _EMPTY and into == _EMPTY:
-        # this should never happen
-        return None
-    elif from_ == _EMPTY:
-        return into
-    else:
-        return from_
+    match (from_, into):
+        case dict() as f, dict() as i:
+            output = {}
+            for key in union_keys(i, f):
+                value = merge_values(f.get(key, _EMPTY), i.get(key, _EMPTY))
+                if value != {}:
+                    output[key] = value
+            return output
+        case dict() as f, _:
+            return f.copy()
+        case _, dict() as i:
+            return i.copy()
+        case _EmptyMarker(), _EmptyMarker():
+            return None
+        case _EmptyMarker(), not_empty:
+            return not_empty
+        case not_empty, _EmptyMarker():
+            return not_empty
+    return from_ or into
 
 
-def de_dot(dot_string: str, value: Any) -> tuple[str, Any]:
+def de_dot(dot_string: str, value: ANY) -> tuple[str, Any]:
     """Turn value and dotted string key into a nested dictionary."""
     arr = dot_string.split(".")
     while len(arr) > 1:
@@ -118,32 +137,48 @@ def de_dot(dot_string: str, value: Any) -> tuple[str, Any]:
 
 
 def normalize_dict(value: dict[str, Any]) -> dict[str, Any]:
-    """Expands all dotted names to nested dictionaries."""
+    """Expand all dotted names to nested dictionaries."""
     if not isinstance(value, dict):
         return value
 
     output: dict[str, Any] = {}
     for key, val in value.items():
+        normalized: Any
         if isinstance(val, dict):
             # dig into the dictionary to process all sub-nodes
-            val = normalize_dict(val)
+            normalized = normalize_dict(val)
         elif isinstance(val, list):
             # process all items in the list
-            val = [normalize_dict(x) for x in val]
-
+            normalized = [normalize_dict(x) for x in val]
+        else:
+            normalized = val
         # now see if the key needs to get turned into levels of nesting
-        key, val = de_dot(key, val)
+        k, v = de_dot(key, normalized)
 
-        output[key] = merge_values(val, output.get(key, _EMPTY))
+        output[k] = merge_values(v, output.get(k, _EMPTY))
     return output
 
 
-def iso_date(record: logging.LogRecord) -> str:
-    iso_minus_timezone = datetime.datetime.utcfromtimestamp(record.created).isoformat()
-    return f"{iso_minus_timezone}Z"
+def to_z(value: datetime.datetime | None) -> str | None:
+    """Make an ISO-formatted string from a datetime, but use Z instead of +00:09.
+
+    >>> to_z(datetime.datetime(2020, 12, 12, 12, 12, 12, tzinfo=datetime.UTC))
+    '2020-12-12T12:12:12Z'
+    >>> to_z(datetime.datetime(2020, 12, 12, 12, 12, 12, tzinfo=_OFFSET_8))
+    '2020-12-12T12:12:12-08:00'
+    """
+    if value is None:
+        return None
+    iso_datetime = value.isoformat()
+    return iso_datetime.replace("+00:00", "Z")
 
 
-def render_traceback(exception_info) -> str:
+def iso_date(record: logging.LogRecord) -> str | None:
+    """Format a datetime as an iso string, ending in Z for UTC."""
+    return to_z(datetime.datetime.fromtimestamp(record.created, datetime.UTC))
+
+
+def render_traceback(exception_info) -> str:  # noqa: ANN001
     """Format and return the specified exception information as a string.
 
     This default implementation just uses
@@ -154,11 +189,10 @@ def render_traceback(exception_info) -> str:
     sio = io.StringIO()
     tb = exception_info[2]
     traceback.print_tb(tb, file=sio)
-    # traceback.print_exception(ei[0], ei[1], tb, None, sio)
+    # traceback.print_exception(ei[0], ei[1], tb, None, sio)  # noqa: ERA001
     s = sio.getvalue()
     sio.close()
-    s = s.lstrip("\n")
-    return s
+    return s.lstrip("\n")
 
 
 # inspired by https://github.com/madzak/python-json-logger/blob/master/src/pythonjsonlogger/jsonlogger.py
@@ -192,7 +226,7 @@ RECORD_MAPPINGS = {
 
 
 def get_event(record: logging.LogRecord) -> dict[str, Any]:
-    """Prepares a flattened dictionary from a LogRecord that includes the basic ECS fields.
+    """Prepare a flattened dictionary from a LogRecord that includes the basic ECS fields.
 
     Users of this library are expected to be hygienic about their use of field names.
     """
@@ -213,7 +247,7 @@ def get_event(record: logging.LogRecord) -> dict[str, Any]:
 
     extra: dict = {}
     if hasattr(record, "extra"):
-        extra = record.extra or {}  # type: ignore
+        extra = record.extra or {}
     event.update(extra)
 
     if record.exc_info:
@@ -225,9 +259,15 @@ def get_event(record: logging.LogRecord) -> dict[str, Any]:
 
 
 class EasyLoggingFormatter(abc.ABC, logging.Formatter):
+    """The base class for your formatter."""
+
+    def formatMessage(self, record: logging.LogRecord) -> str:  # noqa: N802
+        """Fulfil the logging.Formatter signature."""
+        return self.format_message(record)
+
     @abc.abstractmethod
-    def formatMessage(self, record):
-        pass
+    def format_message(self, record: logging.LogRecord) -> str:
+        """Override this to format your message."""
 
 
 class ConsoleFormatter(EasyLoggingFormatter):
@@ -235,7 +275,7 @@ class ConsoleFormatter(EasyLoggingFormatter):
 
     reset = "\x1b[0m"
 
-    COLORS = {
+    COLORS: typing.ClassVar = {
         logging.DEBUG: colorist.Color.WHITE,
         logging.INFO: colorist.BrightColor.WHITE,
         logging.WARNING: colorist.Color.YELLOW,
@@ -244,7 +284,8 @@ class ConsoleFormatter(EasyLoggingFormatter):
         logging.CRITICAL: colorist.Color.RED,
     }
 
-    def format_extra(self, value: Any, color: colorist.Color | str | None = None) -> str:
+    def format_extra(self, value: ANY, color: colorist.Color | str | None = None) -> str:
+        """Turn a value into a displayable string."""
         if not isinstance(value, str):
             try:
                 value = json.dumps(value)
@@ -252,17 +293,22 @@ class ConsoleFormatter(EasyLoggingFormatter):
                 value = str(value)
         return self.colorize(value, color)
 
-    def colorize(self, value: Any, color: colorist.Color | str | None = None) -> str:
+    def colorize(self, value: ANY, color: colorist.Color | str | None = None) -> str:
+        """Optionally wrap a value in a color."""
         if color is None:
             return f"{value}"
         return f"{color}{value}{colorist.Color.OFF}"
 
-    def format_field(self, key: str, value: Any) -> str:
+    def format_field(self, key: str, value: ANY) -> str | None:
+        """Format a field into a displayable string."""
+        if key is None or value is None:
+            return None
         k = self.format_extra(key, colorist.Color.GREEN)
         v = self.format_extra(value)
         return f"{k}={v}"
 
-    def formatMessage(self, record: logging.LogRecord) -> str:
+    def format_message(self, record: logging.LogRecord) -> str:
+        """Turn a logging record into a colored message."""
         event = get_event(record)
         color = self.COLORS.get(record.levelno)
 
@@ -294,31 +340,33 @@ class ConsoleFormatter(EasyLoggingFormatter):
 
         extra_pairs = [self.format_field(k, v) for k, v in event.items()]
         if extra_pairs:
-            pairs_string = " ".join(extra_pairs)
+            pairs_string = " ".join([x for x in extra_pairs if x is not None and len(x)])
             message = f"{message} | {pairs_string}"
-        line = f"[{timestamp}] [{level}] {message}{self.reset}"
-
-        return line
+        return f"[{timestamp}] [{level}] {message}{self.reset}"
 
 
 class PlainTextFormatter(EasyLoggingFormatter):
     """Use when you don't want any colors in your life."""
 
-    def format_extra(self, value: Any) -> str:
+    def format_extra(self, value: Any) -> str:  # noqa: ANN401
+        """Format a key or value attached to a logging context."""
         if isinstance(value, str):
             return value
-        else:
-            try:
-                return json.dumps(value)
-            except Exception:
-                return str(value)
+        try:
+            return json.dumps(value)
+        except Exception:
+            return str(value)
 
-    def format_field(self, key: str, value: Any) -> str:
+    def format_field(self, key: str, value: object) -> str | None:
+        """Produce a string for a field."""
+        if key is None or value is None:
+            return None
         k = self.format_extra(key)
         v = self.format_extra(value)
         return f"{k}={v}"
 
-    def formatMessage(self, record: logging.LogRecord) -> str:
+    def format_message(self, record: logging.LogRecord) -> str:
+        """Turn a LogRecord into a plain text log line."""
         event = get_event(record)
 
         event = flatten_dict(event)
@@ -336,17 +384,13 @@ class PlainTextFormatter(EasyLoggingFormatter):
 
         extra_pairs = [self.format_field(k, v) for k, v in event.items()]
         if extra_pairs:
-            pairs_string = " ".join(extra_pairs)
+            pairs_string = " ".join([x for x in extra_pairs if x is not None and len(x)])
             message = f"{message} | {pairs_string}"
-        line = f"[{timestamp}] [{level}] {message}"
-
-        return line
+        return f"[{timestamp}] [{level}] {message}"
 
 
-def _json_dumps_fallback(value: Any) -> str:
-    """Fallback handler for `json.dumps` to handle objects json doesn't know how to
-    serialize.
-    """
+def _json_dumps_fallback(value: Any) -> str:  # noqa: ANN401
+    """Handle objects json doesn't know how to serialize."""
     try:
         # This is what structlog's json fallback does
         return value.__structlog__()
@@ -358,13 +402,13 @@ def _json_dumps_fallback(value: Any) -> str:
 class ECSJsonFormatter(EasyLoggingFormatter):
     """Logs a record as ECS-ish JSON using the event prepared by EasyLoggingFormatter."""
 
-    def formatMessage(self, record):
+    def format_message(self, record: logging.LogRecord) -> str:
         """Format the specified record as text."""
         event = get_event(record)
         return self.format_json(event)
 
     def format_json(self, event: dict) -> str:
-        """Turns a flattened event dictionary into a nice ECS-fields compatible json string."""
+        """Turn a flattened event dictionary into a nice ECS-fields compatible json string."""
         first_keys = ["@timestamp", "log.level", "message"]
 
         # extract just the keys we want to be first
