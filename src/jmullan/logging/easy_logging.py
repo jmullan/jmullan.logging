@@ -13,6 +13,7 @@ def easy_initialize_logging(
     stream: TextIO | None = None,
     formatter: logging.Formatter | None = None,
     log_levels: dict[str, str] | None = None,
+    clear_existing: bool | None = True,
 ) -> None:
     """Configure logging very simply.
 
@@ -42,6 +43,9 @@ def easy_initialize_logging(
     root_logger.addHandler(handler)
 
     root_logger.setLevel(log_level)
+
+    if clear_existing:
+        logging.root.handlers.clear()
 
     if log_levels is not None:
         for logger_name, log_level in log_levels.items():

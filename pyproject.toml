@@ -111,6 +111,7 @@ lint.ignore = [
     "D203",  # `incorrect-blank-line-before-class`
     "D213",  # `multi-line-summary-second-line`
     "EM101",  # Exception must not use a string literal, assign to variable first
+    "FBT002",  # Boolean default positional argument in function definition
     "SIM108",  # Use ternary operator instead of `if`-`else`-block
     "TRY003",  # Avoid specifying long messages outside the exception class
 ]
