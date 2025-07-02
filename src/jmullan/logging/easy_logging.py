@@ -39,13 +39,13 @@ def easy_initialize_logging(
     handler = logging.StreamHandler(stream)
     handler.setFormatter(formatter)
 
+    if clear_existing:
+        logging.root.handlers.clear()
+
     root_logger = logging.getLogger()
     root_logger.addHandler(handler)
 
     root_logger.setLevel(log_level)
-
-    if clear_existing:
-        logging.root.handlers.clear()
 
     if log_levels is not None:
         for logger_name, log_level in log_levels.items():
