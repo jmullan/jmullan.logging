@@ -307,6 +307,8 @@ class ConsoleFormatter(EasyLoggingFormatter):
             return None
         k = self.format_extra(key, colorist.Color.GREEN)
         v = self.format_extra(value)
+        if not len(k) or not len(v):
+            return ''
         return f"{k}={v}"
 
     def format_message(self, record: logging.LogRecord) -> str:
@@ -340,7 +342,7 @@ class ConsoleFormatter(EasyLoggingFormatter):
         for field in suppress_fields:
             event.pop(field, None)
 
-        extra_pairs = [self.format_field(k, v) for k, v in event.items() if v is not None and len(v) > 0]
+        extra_pairs = [self.format_field(k, v) for k, v in event.items() if v is not None]
         if extra_pairs:
             pairs_string = " ".join([x for x in extra_pairs if x is not None and len(x)])
             message = f"{message} | {pairs_string}"
