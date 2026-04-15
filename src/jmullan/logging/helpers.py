@@ -42,7 +42,7 @@ def logging_context(**kwargs) -> Iterator[ChainMap]:
     """
     token = None
     try:
-        child = _stack.get().new_child(kwargs)
+        child = _get_stack().new_child(kwargs)
         token = _stack.set(child)
         yield child
     finally:
