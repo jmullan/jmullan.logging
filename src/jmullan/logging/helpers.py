@@ -19,9 +19,18 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
+def _get_stack() -> ChainMap:
+    try:
+        return _stack.get()
+    except LookupError:
+        stack = ChainMap()
+        _stack.set(stack)
+        return stack
+
+
 def current_logging_context() -> dict:
     """Get a copy of the current logging context."""
-    return dict(_stack.get().copy())
+    return dict(_get_stack().copy())
 
 
 @contextmanager
