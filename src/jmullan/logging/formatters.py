@@ -295,6 +295,8 @@ class ConsoleFormatter(EasyLoggingFormatter):
 
     def colorize(self, value: ANY, color: colorist.Color | str | None = None) -> str:
         """Optionally wrap a value in a color."""
+        if value is None or not len(value):
+            return ''
         if color is None:
             return f"{value}"
         return f"{color}{value}{colorist.Color.OFF}"
