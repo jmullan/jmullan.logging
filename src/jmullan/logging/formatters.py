@@ -340,7 +340,7 @@ class ConsoleFormatter(EasyLoggingFormatter):
         for field in suppress_fields:
             event.pop(field, None)
 
-        extra_pairs = [self.format_field(k, v) for k, v in event.items()]
+        extra_pairs = [self.format_field(k, v) for k, v in event.items() if v is not None and len(v) > 0]
         if extra_pairs:
             pairs_string = " ".join([x for x in extra_pairs if x is not None and len(x)])
             message = f"{message} | {pairs_string}"
